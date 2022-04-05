@@ -7,6 +7,7 @@ use md5::Digest;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use quick_xml::Writer;
+use std::borrow::Cow;
 use std::io::Cursor;
 use writer::driver::*;
 
@@ -68,7 +69,7 @@ impl SharedStringItem {
         ""
     }
 
-    pub(crate) fn get_hash_code(&self) -> String {
+    pub(crate) fn get_hash_code(&self) -> Cow<'static, str> {
         format!(
             "{:x}",
             md5::Md5::digest(format!(
@@ -78,7 +79,7 @@ impl SharedStringItem {
                         v.get_hash_code()
                     }
                     None => {
-                        String::from("NONE")
+                        "NONE".into()
                     }
                 },
                 match &self.rich_text {
@@ -86,11 +87,11 @@ impl SharedStringItem {
                         v.get_hash_code()
                     }
                     None => {
-                        String::from("NONE")
+                        "NONE".into()
                     }
                 }
             ))
-        )
+        ).into()
     }
 
     pub(crate) fn set_attributes<R: std::io::BufRead>(

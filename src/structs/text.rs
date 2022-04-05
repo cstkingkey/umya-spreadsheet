@@ -4,6 +4,7 @@ use onig::*;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use quick_xml::Writer;
+use std::borrow::Cow;
 use std::io::Cursor;
 use writer::driver::*;
 
@@ -21,8 +22,8 @@ impl Text {
         self
     }
 
-    pub(crate) fn get_hash_code(&self) -> String {
-        format!("{:x}", md5::Md5::digest(&self.value))
+    pub(crate) fn get_hash_code(&self) -> Cow<'static, str> {
+        format!("{:x}", md5::Md5::digest(&self.value)).into()
     }
 
     pub(crate) fn set_attributes<R: std::io::BufRead>(

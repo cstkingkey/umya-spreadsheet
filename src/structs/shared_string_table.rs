@@ -2,6 +2,8 @@
 use super::CellValue;
 use super::SharedStringItem;
 use super::Text;
+extern crate ahash;
+use self::ahash::{AHasher, RandomState};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use quick_xml::Writer;
@@ -12,7 +14,7 @@ use writer::driver::*;
 #[derive(Clone, Default, Debug)]
 pub(crate) struct SharedStringTable {
     shared_string_item: Vec<SharedStringItem>,
-    map: HashMap<String, usize>,
+    map: HashMap<String, usize, RandomState>,
     regist_count: usize,
 }
 impl SharedStringTable {
@@ -38,11 +40,10 @@ impl SharedStringTable {
         // let l2 = self.map.len();
         // println!("{}:::{}",l1,l2);
         if self.shared_string_item.len() > 0 && self.map.len() == 0 {
-            let mut h: HashMap<String, usize> =
-                HashMap::with_capacity(self.shared_string_item.len());
+            let mut h: HashMap<String, usize, RandomState> = HashMap::default();
             for i in 0..self.shared_string_item.len() {
                 let hash = self.shared_string_item[i].get_hash_code();
-                h.insert(hash, i);
+                h.insert(hash.into_owned(), i);
             }
             self.map = h;
         }
@@ -71,13 +72,13 @@ impl SharedStringTable {
         let hash_code = shared_string_item.get_hash_code();
         self.ensure_map();
 
-        let id = self.map.get(&hash_code);
+        let id = self.map.get(hash_code.as_ref());
         match id {
             Some(n) => return n.to_owned(),
             None => {
                 let n = self.shared_string_item.len();
                 self.set_shared_string_item(shared_string_item);
-                self.map.insert(hash_code, n);
+                self.map.insert(hash_code.into_owned(), n);
                 return n;
             }
         }

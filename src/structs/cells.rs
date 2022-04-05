@@ -1,13 +1,16 @@
 use super::Cell;
 use super::CellValue;
 use super::Style;
+use self::ahash::RandomState;
+extern crate  ahash;
+//::{AHasher, RandomState};
 use helper::range::*;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 #[derive(Clone, Default, Debug)]
 pub struct Cells {
-    map: HashMap<(u32, u32), Cell>,
+    map: HashMap<(u32, u32), Cell, RandomState>,
     default_cell_value: CellValue,
     default_style: Style,
 }
@@ -20,7 +23,7 @@ impl Cells {
         self.map.values_mut().collect()
     }
 
-    pub(crate) fn get_collection_to_hashmap_mut(&mut self) -> &mut HashMap<(u32, u32), Cell> {
+    pub(crate) fn get_collection_to_hashmap_mut(&mut self) -> &mut HashMap<(u32, u32), Cell, RandomState> {
         &mut self.map
     }
 
@@ -186,7 +189,7 @@ impl Cells {
     }
 
     pub(crate) fn rebuild_map(&mut self) {
-        let mut rebuild: HashMap<(u32, u32), Cell> = HashMap::new();
+        let mut rebuild: HashMap<(u32, u32), Cell, RandomState> = HashMap::default();
         for ((_, _), cell) in self.get_collection_to_hashmap_mut() {
             let col_num = cell.get_coordinate().get_col_num();
             let row_num = cell.get_coordinate().get_row_num();
