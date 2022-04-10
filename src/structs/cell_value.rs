@@ -2,15 +2,77 @@ use super::RichText;
 use super::SharedStringItem;
 use helper::formula::*;
 use md5::Digest;
+use parking_lot::RwLock;
 
-#[derive(Clone, Default, Debug, PartialEq, PartialOrd)]
+#[derive(Default, Debug)]
 pub struct CellValue {
-    pub(crate) data_type: String,
-    pub(crate) value: Option<String>,
+    pub(crate) value: RwLock<Option<Value>>,
+    pub(crate) raw_value: Option<String>,
     pub(crate) rich_text: Option<RichText>,
     pub(crate) formula: Option<String>,
     pub(crate) formula_attributes: Vec<(String, String)>,
 }
+
+impl PartialEq for CellValue {
+    fn eq(&self, other: &Self) -> bool {
+        *self.value.read() == *other.value.read() && self.raw_value == other.raw_value && self.rich_text == other.rich_text && self.formula == other.formula && self.formula_attributes == other.formula_attributes
+    }
+}
+
+impl PartialOrd for CellValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (*self.value.read()).partial_cmp(&other.value.read()) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.raw_value.partial_cmp(&other.raw_value) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.rich_text.partial_cmp(&other.rich_text) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.formula.partial_cmp(&other.formula) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.formula_attributes.partial_cmp(&other.formula_attributes)
+    }
+}
+
+impl Clone for CellValue {
+    fn clone(&self) -> Self {
+        let v= self.value.read().clone();
+        let v = RwLock::new(v);
+        Self { value: v, raw_value: self.raw_value.clone(), rich_text: self.rich_text.clone(), formula: self.formula.clone(), formula_attributes: self.formula_attributes.clone() }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum Value {
+    String(String),
+    //Formula(String),
+    Numeric(f64),
+    Bool(bool),
+    Null,
+    Inline,
+    Error,
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::String(s) => write!(f, "{}", s),
+            Value::Numeric(ft) => write!(f, "{}", ft),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::Null => write!(f, ""),
+            Value::Inline => write!(f, ""),
+            Value::Error => write!(f, ""),
+        }
+    }
+}
+
 impl CellValue {
     // Data types
     pub const TYPE_STRING2: &'static str = "str";
@@ -31,53 +93,64 @@ impl CellValue {
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect()
     }
-    pub fn get_value(&self) -> &str {
-        match &self.value {
+
+    pub fn get_typed_value(&self) -> Option<Value> {
+        if self.value.read().is_none() {
+            if let Some(rv) = self.raw_value.as_ref() {
+                let tv = Self::guess_typed_data(&rv);
+                *self.value.write() = Some(tv);
+            }
+        }
+
+        (*self.value.read()).clone()
+    }
+
+    pub fn get_value(&self) -> String {
+        match self.get_typed_value() {
             Some(v) => {
-                return v;
+                return v.to_string();
             }
             None => {}
         }
         match &self.rich_text {
             Some(v) => {
-                return v.get_text();
+                return v.get_text().to_string();
             }
             None => {}
         }
-        ""
+        "".to_string()
     }
 
-    pub(crate) fn get_value_crate(&self) -> &Option<String> {
-        &self.value
-    }
+    //pub(crate) fn get_value_crate(&self) -> &Option<String> {
+    //    &self.value
+    //}
 
     pub fn get_rich_text(&self) -> &Option<RichText> {
         &self.rich_text
     }
 
-    pub fn set_value<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        let value_org = value.into();
-        self.data_type = Self::data_type_for_value(&value_org).to_string();
-        self.value = Some(value_org);
+    pub fn set_value<S: AsRef<str>>(&mut self, value: S) -> &mut Self {
+        let value = Self::guess_typed_data(value.as_ref());
+        *self.value.write() = Some(value);
         self.rich_text = None;
         self.formula = None;
         self
     }
 
+    pub fn set_value_raw<S: Into<String>>(&mut self, value: S) -> &mut Self {
+        self.raw_value = Some(value.into());
+        self
+    }
+
     pub fn set_value_from_string<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        self.data_type = Self::TYPE_STRING.to_string();
-        self.value = Some(value.into());
+        *self.value.write() = Some(Value::String(value.into()));
         self.rich_text = None;
         self.formula = None;
         self
     }
 
     pub fn set_value_from_bool(&mut self, value: bool) -> &mut Self {
-        self.data_type = Self::TYPE_BOOL.to_string();
-        self.value = Some(match value {
-            true => "TRUE".to_string(),
-            false => "FALSE".to_string(),
-        });
+        *self.value.write() = Some(Value::Bool(value));
         self.rich_text = None;
         self.formula = None;
         self
@@ -87,93 +160,15 @@ impl CellValue {
         self.set_value_from_bool(*value)
     }
 
-    pub fn set_value_from_u16(&mut self, value: u16) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
+    pub fn set_value_from_numberic<V: Into<f64>>(&mut self, value: V) -> &mut Self {
+        *self.value.write() = Some(Value::Numeric(value.into()));
         self.rich_text = None;
         self.formula = None;
         self
-    }
-
-    pub fn set_value_from_u16_ref(&mut self, value: &u16) -> &mut Self {
-        self.set_value_from_u16(*value)
-    }
-
-    pub fn set_value_from_u32(&mut self, value: u32) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
-        self.rich_text = None;
-        self.formula = None;
-        self
-    }
-
-    pub fn set_value_from_u32_ref(&mut self, value: &u32) -> &mut Self {
-        self.set_value_from_u32(*value)
-    }
-
-    pub fn set_value_from_u64(&mut self, value: u64) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
-        self.rich_text = None;
-        self.formula = None;
-        self
-    }
-
-    pub fn set_value_from_u64_ref(&mut self, value: &u64) -> &mut Self {
-        self.set_value_from_u64(*value)
-    }
-
-    pub fn set_value_from_i16(&mut self, value: i16) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
-        self.rich_text = None;
-        self.formula = None;
-        self
-    }
-
-    pub fn set_value_from_i16_ref(&mut self, value: &i16) -> &mut Self {
-        self.set_value_from_i16(*value)
-    }
-
-    pub fn set_value_from_i32(&mut self, value: i32) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
-        self.rich_text = None;
-        self.formula = None;
-        self
-    }
-
-    pub fn set_value_from_i32_ref(&mut self, value: &i32) -> &mut Self {
-        self.set_value_from_i32(*value)
-    }
-
-    pub fn set_value_from_i64(&mut self, value: i64) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
-        self.rich_text = None;
-        self.formula = None;
-        self
-    }
-
-    pub fn set_value_from_i64_ref(&mut self, value: &i64) -> &mut Self {
-        self.set_value_from_i64(*value)
-    }
-
-    pub fn set_value_from_usize(&mut self, value: usize) -> &mut Self {
-        self.data_type = Self::TYPE_NUMERIC.to_string();
-        self.value = Some(value.to_string());
-        self.rich_text = None;
-        self.formula = None;
-        self
-    }
-
-    pub fn set_value_from_usize_ref(&mut self, value: &usize) -> &mut Self {
-        self.set_value_from_usize(*value)
     }
 
     pub fn set_rich_text(&mut self, value: RichText) -> &mut Self {
-        self.data_type = Self::TYPE_STRING.to_string();
-        self.value = None;
+        *self.value.write() = None;
         self.rich_text = Some(value);
         self.formula = None;
         self
@@ -184,18 +179,16 @@ impl CellValue {
     }
 
     pub fn set_formula<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        self.data_type = Self::TYPE_FORMULA.to_string();
-        self.value = None;
+        *self.value.write() = None;
         self.rich_text = None;
         self.formula = Some(value.into());
         self
     }
 
     pub(crate) fn set_shared_string_item(&mut self, value: SharedStringItem) -> &mut Self {
-        self.data_type = Self::TYPE_STRING.to_string();
         match value.get_text() {
             Some(v) => {
-                self.value = Some(v.get_value().to_string());
+                *self.value.write() = Some(Value::String(v.get_value().to_string()));
             }
             None => {}
         }
@@ -205,15 +198,33 @@ impl CellValue {
     }
 
     pub fn get_data_type(&self) -> &str {
-        &self.data_type
+        let value = self.get_typed_value();
+        
+        if let Some(v) = value {
+            let r = match v {
+                Value::String(_) => Self::TYPE_STRING,
+                Value::Numeric(_) => Self::TYPE_NUMERIC,
+                Value::Bool(_) => Self::TYPE_BOOL,
+                Value::Null => Self::TYPE_NULL,
+                Value::Inline => Self::TYPE_INLINE,
+                Value::Error => Self::TYPE_ERROR,
+            };
+            return r;
+        } else {
+            if self.formula.is_some() {
+                return  Self::TYPE_STRING
+            }
+
+            if self.rich_text.is_some() {
+                return Self::TYPE_STRING
+            }
+        }
+        
+        Self::TYPE_STRING
     }
 
     pub fn set_data_type<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        let data_type = value.into();
-        match Self::check_data_type(self.get_value(), &data_type) {
-            Ok(_) => self.data_type = data_type,
-            Err(e) => panic!("Error at set_data_type {:?}", e),
-        }
+        todo!();
         self
     }
 
@@ -243,7 +254,7 @@ impl CellValue {
     }
 
     pub fn is_formula(&self) -> bool {
-        &self.data_type == Self::TYPE_FORMULA
+        self.formula.is_some()
     }
 
     pub fn get_formula(&self) -> &str {
@@ -273,33 +284,56 @@ impl CellValue {
         Self::TYPE_STRING
     }
 
-    pub(crate) fn _get_hash_code_by_value(&self) -> String {
-        format!(
-            "{:x}",
-            md5::Md5::digest(format!(
-                "{}{}",
-                match &self.value {
-                    Some(v) => {
-                        v
-                    }
-                    None => {
-                        "None"
-                    }
-                },
-                match &self.rich_text {
-                    Some(v) => {
-                        v.get_hash_code()
-                    }
-                    None => {
-                        "None".into()
-                    }
-                },
-            ))
-        )
+    pub(crate) fn guess_typed_data(value: &str) -> Value {
+        let uppercase_value = value.to_uppercase();
+
+        // Match the value against a few data types
+        if uppercase_value == "NULL" {
+            return Value::Null;
+        }
+
+        if let Ok(f) = value.parse::<f64>() {
+            return Value::Numeric(f);
+        }
+
+        if uppercase_value == "TRUE" {
+            return  Value::Bool(true);
+        }
+
+        if uppercase_value == "FALSE" {
+            return  Value::Bool(false);
+        }
+
+        Value::String(value.into())
     }
 
+    // pub(crate) fn _get_hash_code_by_value(&self) -> String {
+    //     format!(
+    //         "{:x}",
+    //         md5::Md5::digest(format!(
+    //             "{}{}",
+    //             match &self.value {
+    //                 Some(v) => {
+    //                     v
+    //                 }
+    //                 None => {
+    //                     "None"
+    //                 }
+    //             },
+    //             match &self.rich_text {
+    //                 Some(v) => {
+    //                     v.get_hash_code()
+    //                 }
+    //                 None => {
+    //                     "None".into()
+    //                 }
+    //             },
+    //         ))
+    //     )
+    // }
+
     pub(crate) fn is_empty(&self) -> bool {
-        match &self.value {
+        match self.get_typed_value() {
             Some(_) => return false,
             None => {}
         }
@@ -382,51 +416,15 @@ mod tests {
         assert_eq!(obj.get_value(), "TEST");
 
         obj.set_value_from_bool(true);
-        assert_eq!(obj.get_value(), "TRUE");
+        assert_eq!(obj.get_value(), "true");
 
         obj.set_value_from_bool_ref(&true);
-        assert_eq!(obj.get_value(), "TRUE");
+        assert_eq!(obj.get_value(), "true");
 
-        obj.set_value_from_u16(1);
+        obj.set_value_from_numberic(1);
         assert_eq!(obj.get_value(), "1");
 
-        obj.set_value_from_u16_ref(&1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_u32(1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_u32_ref(&1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_u64(1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_u64_ref(&1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_i16(1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_i16_ref(&1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_i32(1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_i32_ref(&1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_i64(1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_i64_ref(&1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_usize(1);
-        assert_eq!(obj.get_value(), "1");
-
-        obj.set_value_from_usize_ref(&1);
-        assert_eq!(obj.get_value(), "1");
+        obj.set_value_from_numberic(1.09);
+        assert_eq!(obj.get_value(), "1.09");
     }
 }

@@ -23,6 +23,7 @@ pub struct Cell {
     style: Style,
     hyperlink: Option<Hyperlink>,
 }
+
 impl Cell {
     // Data types
     pub const TYPE_STRING2: &'static str = "str";
@@ -86,32 +87,37 @@ impl Cell {
         self
     }
 
-    pub fn get_value(&self) -> &str {
-        match &self.cell_value.value {
+    pub fn get_value(&self) -> String {
+        match self.cell_value.get_typed_value() {
             Some(v) => {
-                return v;
+                return v.to_string();
             }
             None => {}
         }
         match &self.cell_value.rich_text {
             Some(v) => {
-                return v.get_text();
+                return v.get_text().to_string();
             }
             None => {}
         }
-        ""
+        "".to_string()
     }
 
-    pub(crate) fn _get_value_crate(&self) -> &Option<String> {
-        &self.cell_value.value
-    }
+    //pub(crate) fn _get_value_crate(&self) -> &Option<String> {
+    //    &self.cell_value.value
+    //}
 
     pub fn get_rich_text(&self) -> &Option<RichText> {
         &self.cell_value.rich_text
     }
 
-    pub fn set_value<S: Into<String>>(&mut self, value: S) -> &mut Self {
+    pub fn set_value<S: AsRef<str>>(&mut self, value: S) -> &mut Self {
         self.cell_value.set_value(value);
+        self
+    }
+
+    pub fn set_value_raw<S: Into<String>>(&mut self, value: S) -> &mut Self {
+        self.cell_value.set_value_raw(value);
         self
     }
 
@@ -130,73 +136,8 @@ impl Cell {
         self
     }
 
-    pub fn set_value_from_u16(&mut self, value: u16) -> &mut Self {
-        self.cell_value.set_value_from_u16(value);
-        self
-    }
-
-    pub fn set_value_from_u16_ref(&mut self, value: &u16) -> &mut Self {
-        self.cell_value.set_value_from_u16_ref(value);
-        self
-    }
-
-    pub fn set_value_from_u32(&mut self, value: u32) -> &mut Self {
-        self.cell_value.set_value_from_u32(value);
-        self
-    }
-
-    pub fn set_value_from_u32_ref(&mut self, value: &u32) -> &mut Self {
-        self.cell_value.set_value_from_u32_ref(value);
-        self
-    }
-
-    pub fn set_value_from_u64(&mut self, value: u64) -> &mut Self {
-        self.cell_value.set_value_from_u64(value);
-        self
-    }
-
-    pub fn set_value_from_u64_ref(&mut self, value: &u64) -> &mut Self {
-        self.cell_value.set_value_from_u64_ref(value);
-        self
-    }
-
-    pub fn set_value_from_i16(&mut self, value: i16) -> &mut Self {
-        self.cell_value.set_value_from_i16(value);
-        self
-    }
-
-    pub fn set_value_from_i16_ref(&mut self, value: &i16) -> &mut Self {
-        self.cell_value.set_value_from_i16_ref(value);
-        self
-    }
-
-    pub fn set_value_from_i32(&mut self, value: i32) -> &mut Self {
-        self.cell_value.set_value_from_i32(value);
-        self
-    }
-
-    pub fn set_value_from_i32_ref(&mut self, value: &i32) -> &mut Self {
-        self.cell_value.set_value_from_i32_ref(value);
-        self
-    }
-
-    pub fn set_value_from_i64(&mut self, value: i64) -> &mut Self {
-        self.cell_value.set_value_from_i64(value);
-        self
-    }
-
-    pub fn set_value_from_i64_ref(&mut self, value: &i64) -> &mut Self {
-        self.cell_value.set_value_from_i64_ref(value);
-        self
-    }
-
-    pub fn set_value_from_usize(&mut self, value: usize) -> &mut Self {
-        self.cell_value.set_value_from_usize(value);
-        self
-    }
-
-    pub fn set_value_from_usize_ref(&mut self, value: &usize) -> &mut Self {
-        self.cell_value.set_value_from_usize_ref(value);
+    pub fn set_value_from_numberic<V: Into<f64>>(&mut self, value: V) -> &mut Self {
+        self.cell_value.set_value_from_numberic(value);
         self
     }
 
@@ -221,7 +162,7 @@ impl Cell {
     }
 
     pub fn get_data_type(&self) -> &str {
-        &self.cell_value.data_type
+        &self.cell_value.get_data_type()
     }
 
     pub fn set_data_type<S: Into<String>>(&mut self, value: S) -> &mut Self {
@@ -285,8 +226,8 @@ impl Cell {
 
         // convert value
         let result = match self.get_style().get_number_format() {
-            Some(nmuber_format) => to_formatted_string(value, nmuber_format.get_format_code()),
-            None => to_formatted_string(value, NumberingFormat::FORMAT_GENERAL),
+            Some(nmuber_format) => to_formatted_string(value, nmuber_format.get_format_code().to_string()),
+            None => to_formatted_string(value, NumberingFormat::FORMAT_GENERAL.to_string()),
         };
         result
     }
@@ -371,7 +312,7 @@ impl Cell {
                             let prm = &string_value == "1";
                             let _ = self.set_value_from_bool(prm);
                         } else if type_value.is_empty() || type_value == "n" {
-                            let _ = self.set_value(&string_value);
+                            let _ = self.set_value_raw(&string_value);
                         };
                     }
                     b"c" => return,

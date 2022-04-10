@@ -62,13 +62,10 @@ impl SharedStringTable {
         self.regist_count += 1;
 
         let mut shared_string_item = SharedStringItem::default();
-        match value.get_value_crate() {
-            Some(v) => {
-                let mut text = Text::default();
-                text.set_value(v);
-                shared_string_item.set_text(text);
-            }
-            None => {}
+        if let Some(super::Value::String(v)) = value.get_typed_value() {
+            let mut text = Text::default();
+            text.set_value(v);
+            shared_string_item.set_text(text);
         }
         match value.get_rich_text() {
             Some(v) => {

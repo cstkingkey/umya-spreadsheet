@@ -63,9 +63,8 @@ pub fn write_writer<W: io::Seek + io::Write>(
             // get value.
             let mut value = match worksheet.get_cell_by_column_and_row(&(column + 1), &(row + 1)) {
                 Some(cell) => cell.get_cell_value().get_value(),
-                None => "",
-            }
-            .to_string();
+                None => "".to_string(),
+            };
             // do trim.
             if option.get_do_trim() == &true {
                 value = value.trim().to_string();

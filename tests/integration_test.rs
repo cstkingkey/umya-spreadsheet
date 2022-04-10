@@ -683,7 +683,7 @@ fn new_file_and_edit() {
     book.get_sheet_by_name_mut("Sheet2")
         .unwrap()
         .get_cell_by_column_and_row_mut(&2, &2)
-        .set_value_from_i32(1);
+        .set_value_from_numberic(1);
     let a1_value = book
         .get_sheet_by_name("Sheet2")
         .unwrap()
@@ -695,7 +695,7 @@ fn new_file_and_edit() {
     book.get_sheet_by_name_mut("Sheet2")
         .unwrap()
         .get_cell_by_column_and_row_mut(&2, &2)
-        .set_value_from_i32_ref(&1);
+        .set_value_from_numberic(1);
     let a1_value = book
         .get_sheet_by_name("Sheet2")
         .unwrap()
@@ -714,7 +714,7 @@ fn new_file_and_edit() {
         .get_cell_by_column_and_row(&3, &3)
         .unwrap()
         .get_value();
-    assert_eq!("TRUE", a1_value);
+    assert_eq!("true", a1_value);
 
     book.get_sheet_by_name_mut("Sheet2")
         .unwrap()
@@ -726,7 +726,7 @@ fn new_file_and_edit() {
         .get_cell_by_column_and_row(&3, &3)
         .unwrap()
         .get_value();
-    assert_eq!("TRUE", a1_value);
+    assert_eq!("true", a1_value);
 
     // add bottom border.
     book.get_sheet_by_name_mut("Sheet2")

@@ -126,6 +126,7 @@ extern crate regex;
 extern crate thousands;
 extern crate zip;
 extern crate hashbrown;
+extern crate parking_lot;
 
 #[macro_use]
 extern crate lazy_static;

@@ -4,7 +4,7 @@ use super::Style;
 use helper::range::*;
 use hashbrown::HashMap;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct Cells {
     map: HashMap<(u32, u32), Cell>,
     default_cell_value: CellValue,
