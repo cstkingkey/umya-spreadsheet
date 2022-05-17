@@ -201,13 +201,13 @@ impl Cell {
         self
     }
 
-    pub fn get_data_type(&self) -> &CellRawValue {
-        self.cell_value.get_data_type()
-    }
+    // pub fn get_data_type(&self) -> &CellRawValue {
+    //     self.cell_value.get_data_type()
+    // }
 
-    pub fn get_raw_value(&self) -> &CellRawValue {
-        self.cell_value.get_raw_value()
-    }
+    // pub fn get_raw_value(&self) -> &CellRawValue {
+    //     self.cell_value.get_raw_value()
+    // }
 
     pub(crate) fn get_data_type_crate(&self) -> &str {
         self.cell_value.get_data_type_crate()
@@ -356,7 +356,7 @@ impl Cell {
                             let prm = &string_value == "1";
                             let _ = self.set_value_from_bool(prm);
                         } else if type_value == "" || type_value == "n" {
-                            let _ = self.set_value(string_value.clone());
+                            let _ = self.set_value_lazy(string_value.clone());
                         };
                     }
                     b"c" => return,

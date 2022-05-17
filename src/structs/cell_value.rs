@@ -3,22 +3,23 @@ use super::SharedStringItem;
 use super::Text;
 use helper::formula::*;
 use std::borrow::Cow;
+use std::cell::RefCell;
 use structs::CellRawValue;
 
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd)]
 pub struct CellValue {
-    pub(crate) raw_value: CellRawValue,
+    pub(crate) raw_value: RefCell<CellRawValue>,
     pub(crate) formula: Option<String>,
     pub(crate) formula_attributes: Vec<(String, String)>,
 }
 impl CellValue {
-    pub fn get_data_type(&self) -> &CellRawValue {
-        &self.raw_value
-    }
+    // pub fn get_data_type(&self) -> &CellRawValue {
+    //     &self.raw_value.borrow()
+    // }
 
-    pub fn get_raw_value(&self) -> &CellRawValue {
-        &self.raw_value
-    }
+    // pub fn get_raw_value(&self) -> &CellRawValue {
+    //     &self.raw_value.borrow()
+    // }
 
     pub(crate) fn get_data_type_crate(&self) -> &str {
         match &self.formula {
@@ -27,7 +28,16 @@ impl CellValue {
             }
             None => {}
         }
-        &self.raw_value.get_data_type()
+        {
+            let this = self.raw_value.borrow();
+            match &*this {
+                CellRawValue::String(_) => "s",
+                CellRawValue::RichText(_) => "s",
+                CellRawValue::Numeric(_) => "n",
+                CellRawValue::Bool(_) => "b",
+                _ => "",
+            }
+        }
     }
 
     pub fn set_formula_attributes(&mut self, formula_attributes: Vec<(String, String)>) {
@@ -42,48 +52,51 @@ impl CellValue {
     }
 
     pub fn get_value(&self) -> Cow<'static, str> {
-        self.raw_value.to_string().into()
+
+        //self.raw_value.to_string().into()
+        self.get_value_lazy()
     }
 
-    pub fn get_value_lazy(&mut self) -> Cow<'static, str> {
-        match &self.raw_value {
+    pub fn get_value_lazy(&self) -> Cow<'static, str> {
+        let mut rv = self.raw_value.borrow_mut();
+        match &*rv {
             CellRawValue::Lazy(v) => {
-                self.raw_value = Self::guess_typed_data(v);
+                *rv = Self::guess_typed_data(v);
             }
             _ => {}
         }
-        self.formula = None;
-        self.raw_value.to_string().into()
+        //self.formula = None;
+        rv.to_string().into()
     }
 
     pub(crate) fn get_text(&self) -> Option<Text> {
-        self.raw_value.get_text()
+        self.raw_value.borrow().get_text()
     }
 
     pub(crate) fn get_rich_text(&self) -> Option<RichText> {
-        self.raw_value.get_rich_text()
+        self.raw_value.borrow().get_rich_text()
     }
 
     pub fn set_value<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        self.raw_value = Self::guess_typed_data(&value.into());
+        self.raw_value.replace(Self::guess_typed_data(&value.into()));
         self.formula = None;
         self
     }
 
     pub fn set_value_lazy<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        self.raw_value = CellRawValue::Lazy(value.into());
+        self.raw_value.replace(CellRawValue::Lazy(value.into()));
         self.formula = None;
         self
     }
 
     pub fn set_value_from_string<S: Into<String>>(&mut self, value: S) -> &mut Self {
-        self.raw_value = CellRawValue::String(value.into());
+        self.raw_value.replace(CellRawValue::String(value.into()));
         self.formula = None;
         self
     }
 
     pub fn set_value_from_bool(&mut self, value: bool) -> &mut Self {
-        self.raw_value = CellRawValue::Bool(value);
+        self.raw_value.replace(CellRawValue::Bool(value));
         self.formula = None;
         self
     }
@@ -93,13 +106,13 @@ impl CellValue {
     }
 
     pub fn set_value_from_numberic<V: Into<f64>>(&mut self, value: V) -> &mut Self {
-        self.raw_value = CellRawValue::Numeric(value.into());
+        self.raw_value.replace(CellRawValue::Numeric(value.into()));
         self.formula = None;
         self
     }
 
     pub fn set_rich_text(&mut self, value: RichText) -> &mut Self {
-        self.raw_value = CellRawValue::RichText(value);
+        self.raw_value.replace(CellRawValue::RichText(value));
         self.formula = None;
         self
     }
@@ -224,7 +237,7 @@ impl CellValue {
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        if &self.raw_value != &CellRawValue::Null {
+        if *self.raw_value.borrow() != CellRawValue::Null {
             return false;
         }
         match &self.formula {
