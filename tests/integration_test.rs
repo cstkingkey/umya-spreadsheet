@@ -1093,14 +1093,20 @@ fn issue_110() {
 #[test]
 fn compression_test() {
     // reader
-    let path = std::path::Path::new("./tests/test_files/aaa.xlsx");
-    let book = umya_spreadsheet::reader::xlsx::read(path).unwrap();
+    let path = std::path::Path::new("./tests/test_files/aaa_large_string.xlsx");
+    let book = umya_spreadsheet::reader::xlsx::lazy_read(path).unwrap();
 
+    let start = Instant::now();
     // writer
     let path = std::path::Path::new("./tests/result_files/bbb_comp_standard.xlsx");
     let _ = umya_spreadsheet::writer::xlsx::write(&book, path);
+    let end = start.elapsed();
+    println!("write:{}.{:03}sec.", end.as_secs(), end.subsec_millis());
 
+    let start = Instant::now();
     // writer
     let path = std::path::Path::new("./tests/result_files/bbb_comp_light.xlsx");
     let _ = umya_spreadsheet::writer::xlsx::write_light(&book, path);
+    let end = start.elapsed();
+    println!("write:{}.{:03}sec.", end.as_secs(), end.subsec_millis());
 }
